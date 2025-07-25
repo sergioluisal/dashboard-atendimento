@@ -79,10 +79,24 @@ def calculate_metrics(df):
         return {
             "total_os": 0,
             "sla_atendido": 0,
+            "total_os_fechadas": 0,
+            "percentual_fechadas": 0,
             "duracao_media": 0
         }
 
     total_os = len(df)
+
+    # Lista de status que indicam fechamento
+    status_fechados = [
+    "fechada", "encerrada", "finalizada", "concluída", "concluido",
+    "fechado", "resolvida", "finalizado", "encerrado", "concluido com sucesso",
+    "fechada com sucesso", "concluído", "fechado com sucesso"]
+
+    df["StatusDaOS_normalizado"] = df["StatusDaOS"].astype(str).str.strip().str.lower()
+    total_os_fechadas = df[df["StatusDaOS_normalizado"].isin(status_fechados)].shape[0]
+    df.drop(columns=["StatusDaOS_normalizado"], inplace=True)
+
+    percentual_fechadas = (total_os_fechadas / total_os) * 100 if total_os > 0 else 0
 
     # Trata e converte a coluna de SLA
     sla_col = df["SLADeSolucaoAtendido"].astype(str).str.strip().replace({
@@ -95,25 +109,16 @@ def calculate_metrics(df):
     sla_col = pd.to_numeric(sla_col, errors="coerce")
     sla_atendido = sla_col.mean() * 100 if not sla_col.isna().all() else 0
 
-    # Converte colunas de data para datetime
+    # Converte datas
     for col in ["DataDeAbertura", "DataDeFechamento", "DataPrimeiroAtendimento"]:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
+        df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
 
-    # Cálculo da duração média com validação de faixa
+    # Cálculo da duração média com validação
     if "DataDeFechamento" in df.columns and "DataPrimeiroAtendimento" in df.columns:
         df["Duracao"] = (df["DataDeFechamento"] - df["DataPrimeiroAtendimento"]).dt.days
-
-        # Filtros de consistência: remove valores negativos ou exagerados (> 180 dias)
-        df_valid = df[
-            (df["Duracao"].notna()) &
-            (df["Duracao"] >= 0) &
-            (df["Duracao"] <= 180)  # Ajuste esse valor conforme sua realidade
-        ]
-
+        df_valid = df[(df["Duracao"].notna()) & (df["Duracao"] >= 0) & (df["Duracao"] <= 180)]
         duracao_media = df_valid["Duracao"].mean()
 
-        # (Opcional) exibir alerta se houver registros excluídos
         registros_excluidos = df[(df["Duracao"] < 0) | (df["Duracao"] > 180)]
         if not registros_excluidos.empty:
             st.warning(f"{len(registros_excluidos)} registros ignorados por conterem duração inválida.")
@@ -125,9 +130,10 @@ def calculate_metrics(df):
     return {
         "total_os": total_os,
         "sla_atendido": sla_atendido,
+        "total_os_fechadas": total_os_fechadas,
+        "percentual_fechadas": percentual_fechadas,
         "duracao_media": duracao_media
     }
-
 
 def create_bar_chart(df, x_col, title):
     if df.empty or x_col not in df.columns:
@@ -179,6 +185,10 @@ if df is None or df.empty:
     st.info("Por favor, faça upload de um arquivo para começar.")
     st.stop()
 
+# Mostrar os status únicos encontrados para análise
+#if "StatusDaOS" in df.columns:
+    #st.write("🛠️ Status únicos encontrados:", df["StatusDaOS"].dropna().unique())
+
 st.sidebar.header("🔍 Filtros")
 if "Uf" in df.columns:
     # Converte tudo para string
@@ -210,10 +220,27 @@ if "DataDeAbertura" in df.columns:
 
 metrics = calculate_metrics(df)
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4, col5 = st.columns(5)
+
 col1.metric("Total de OS", metrics["total_os"])
-col2.metric("SLA Atendido", f"{metrics['sla_atendido']:.1f}%")
-col3.metric("Duração Média", f"{metrics['duracao_media']:.1f} dias")
+col2.metric("OS Fechadas", metrics["total_os_fechadas"])
+
+# Lógica de cor e seta para percentual de OS fechadas
+percentual = metrics["percentual_fechadas"]
+if percentual >= 80:
+    delta = "↑ Bom"
+    delta_color = "normal"
+elif percentual >= 50:
+    delta = "→ Médio"
+    delta_color = "off"
+else:
+    delta = "↓ Baixo"
+    delta_color = "inverse"
+
+col3.metric("Fechadas (%)", f"{percentual:.1f}%", delta=delta, delta_color=delta_color)
+col4.metric("SLA Atendido", f"{metrics['sla_atendido']:.1f}%")
+col5.metric("Duração Média", f"{metrics['duracao_media']:.1f} dias")
+
 
 st.markdown("---")
 
