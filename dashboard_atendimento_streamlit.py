@@ -18,6 +18,7 @@ COLUNAS_DESEJADAS = [
     "NumeroSerie",
     "ComPeca",
     "TipoOS",
+    "IdCliente"
     "Municipio",
     "Uf",
     "StatusDaOS",
