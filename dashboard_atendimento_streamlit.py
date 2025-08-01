@@ -18,7 +18,6 @@ COLUNAS_DESEJADAS = [
     "NumeroSerie",
     "ComPeca",
     "TipoOS",
-    "IdCliente"
     "Municipio",
     "Uf",
     "StatusDaOS",
@@ -176,10 +175,14 @@ def create_timeline_chart(df, date_col, title):
     return fig
 
 # -------- INTERFACE --------
-st.title("📋 Acompanhamento de Atendimento")
 st.markdown("---")
 
 uploaded_file = st.file_uploader("Faça upload do seu arquivo CSV ou Excel", type=["csv", "xls", "xlsx"])
+
+st.markdown("""
+    <h1 style='text-align: center; color: white; font-size: 48px;'>📋 Acompanhamento de Atendimento</h1>
+    <hr style='border: 1px solid #444;'>
+""", unsafe_allow_html=True)
 df = load_data(uploaded_file)
 
 if df is None or df.empty:
